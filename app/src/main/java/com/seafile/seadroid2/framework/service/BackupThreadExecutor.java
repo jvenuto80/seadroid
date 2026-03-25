@@ -13,6 +13,7 @@ import com.seafile.seadroid2.framework.service.download.FileDownloader;
 import com.seafile.seadroid2.framework.service.upload.FileUploader;
 import com.seafile.seadroid2.framework.service.upload.FolderBackupScanner;
 import com.seafile.seadroid2.framework.service.upload.FolderBackupUploader;
+import com.seafile.seadroid2.framework.service.upload.FolderSyncUploader;
 import com.seafile.seadroid2.framework.service.upload.LocalFileUpdater;
 import com.seafile.seadroid2.framework.service.upload.MediaBackupScanner;
 import com.seafile.seadroid2.framework.service.upload.MediaBackupUploader;
@@ -47,6 +48,7 @@ public class BackupThreadExecutor {
             ShareToSeafileUploader shareToSeafileUploader = new ShareToSeafileUploader(getApplicationContext(), notificationDispatcher);
             FileDownloader downloader = new FileDownloader(getApplicationContext(), notificationDispatcher);
             LocalFileUpdater localFileUpdater = new LocalFileUpdater(getApplicationContext(), notificationDispatcher);
+            FolderSyncUploader folderSyncUploader = new FolderSyncUploader(getApplicationContext(), notificationDispatcher);
 
             transmitterMap.put(FeatureDataSource.MANUAL_FILE_UPLOAD, fileUploader);
             transmitterMap.put(FeatureDataSource.ALBUM_BACKUP, mediaBackupUploader);
@@ -54,6 +56,7 @@ public class BackupThreadExecutor {
             transmitterMap.put(FeatureDataSource.DOWNLOAD, downloader);
             transmitterMap.put(FeatureDataSource.AUTO_UPDATE_LOCAL_FILE, localFileUpdater);
             transmitterMap.put(FeatureDataSource.SHARE_FILE_TO_SEAFILE, shareToSeafileUploader);
+            transmitterMap.put(FeatureDataSource.FOLDER_SYNC, folderSyncUploader);
         }
     }
 
@@ -92,6 +95,7 @@ public class BackupThreadExecutor {
     private CompletableFuture<Void> albumBackupFuture;
     private CompletableFuture<Void> localFileUpdateFuture;
     private CompletableFuture<Void> shareFileUploadFuture;
+    private CompletableFuture<Void> folderSyncUploadFuture;
 
     public boolean isFolderBackupRunning() {
         return folderBackupFuture != null && !folderBackupFuture.isDone();
@@ -141,6 +145,9 @@ public class BackupThreadExecutor {
         } else if (FeatureDataSource.DOWNLOAD == dataSource) {
             FileDownloader fileDownloader = getTransmitter(FeatureDataSource.DOWNLOAD);
             fileDownloader.stopById(modelId);
+        } else if (FeatureDataSource.FOLDER_SYNC == dataSource) {
+            FolderSyncUploader folderSyncUploader = getTransmitter(FeatureDataSource.FOLDER_SYNC);
+            folderSyncUploader.stopById(modelId);
         } else {
             throw new RuntimeException("You must provide a valid data source.");
         }
@@ -171,6 +178,27 @@ public class BackupThreadExecutor {
             @Override
             public void run() {
                 fileDownloadFuture = null;
+            }
+        });
+    }
+
+    public void runFolderSyncUploadTask() {
+        folderSyncUploadFuture = runTask(new Runnable() {
+            @Override
+            public void run() {
+                FolderSyncUploader uploader = getTransmitter(FeatureDataSource.FOLDER_SYNC);
+                SeafException seafException = uploader.upload();
+
+                if (seafException != SeafException.SUCCESS) {
+                    SafeLogs.d(TAG, "runFolderSyncUploadTask()", "upload error: " + seafException);
+                } else {
+                    SafeLogs.d(TAG, "runFolderSyncUploadTask()", "upload success");
+                }
+            }
+        }, new Runnable() {
+            @Override
+            public void run() {
+                folderSyncUploadFuture = null;
             }
         });
     }

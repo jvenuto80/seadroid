@@ -508,6 +508,10 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
                                     SyncRuleManager.remove(rule.id);
                                     refreshSyncRulePrefs();
                                     Toasts.show(R.string.settings_folder_sync_removed);
+                                    // Stop periodic sync if no rules left
+                                    if (SyncRuleManager.getAll().isEmpty()) {
+                                        BackgroundJobManagerImpl.getInstance().stopFolderSync();
+                                    }
                                 })
                                 .setNegativeButton(R.string.cancel, null)
                                 .show();
@@ -1364,6 +1368,10 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
 
                 refreshSyncRulePrefs();
                 Toasts.show(R.string.settings_folder_sync_added);
+
+                // Start periodic sync and run immediately
+                BackgroundJobManagerImpl.getInstance().scheduleFolderSync();
+                BackgroundJobManagerImpl.getInstance().runFolderSyncNow();
             }
         });
 

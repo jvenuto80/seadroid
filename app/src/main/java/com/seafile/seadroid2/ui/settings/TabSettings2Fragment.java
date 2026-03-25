@@ -32,6 +32,7 @@ import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
+import androidx.preference.PreferenceCategory;
 
 import com.blankj.utilcode.util.AppUtils;
 import com.blankj.utilcode.util.CollectionUtils;
@@ -53,6 +54,9 @@ import com.seafile.seadroid2.enums.FeatureDataSource;
 import com.seafile.seadroid2.enums.NetworkMode;
 import com.seafile.seadroid2.enums.ObjSelectType;
 import com.seafile.seadroid2.framework.datastore.StorageManager;
+import com.seafile.seadroid2.framework.datastore.SyncRule;
+import com.seafile.seadroid2.framework.datastore.SyncRuleManager;
+import com.seafile.seadroid2.framework.datastore.SyncRuleManager;
 import com.seafile.seadroid2.framework.datastore.sp_livedata.AlbumBackupSharePreferenceHelper;
 import com.seafile.seadroid2.framework.datastore.sp_livedata.FolderBackupSharePreferenceHelper;
 import com.seafile.seadroid2.framework.file_monitor.FileDaemonServiceManager;
@@ -131,6 +135,10 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
     private Preference mTransferDownloadState;
     private Preference mTransferUploadState;
     private Preference cacheLocationPref;
+
+    // Folder sync
+    private PreferenceCategory mFolderSyncCategory;
+    private SyncRule pendingSyncRule;  // temp rule being built during 2-step add flow
 
     public static TabSettings2Fragment newInstance() {
         return new TabSettings2Fragment();
@@ -273,6 +281,8 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
 
         initTransferPref();
 
+        initFolderSyncPref();
+
         initCachePref();
 
         initAboutPref();
@@ -412,6 +422,98 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
                 return true;
             });
         }
+    }
+
+    private void initFolderSyncPref() {
+        mFolderSyncCategory = findPreference(getString(R.string.pref_key_folder_sync_category));
+
+        Preference addPref = findPreference(getString(R.string.pref_key_folder_sync_add));
+        if (addPref != null) {
+            addPref.setOnPreferenceClickListener(preference -> {
+                // Step 1: pick Seafile repo + dir
+                Intent intent = ObjSelectorActivity.getCurrentAccountIntent(
+                        requireContext(),
+                        ObjSelectType.DIR,
+                        ObjSelectType.DIR,
+                        null
+                );
+                syncRuleRemotePickerLauncher.launch(intent);
+                return true;
+            });
+        }
+
+        refreshSyncRulePrefs();
+    }
+
+    private void refreshSyncRulePrefs() {
+        if (mFolderSyncCategory == null) {
+            return;
+        }
+
+        // Remove all dynamically-added rule preferences (keep the "Add" button)
+        String addKey = getString(R.string.pref_key_folder_sync_add);
+        List<Preference> toRemove = new ArrayList<>();
+        for (int i = 0; i < mFolderSyncCategory.getPreferenceCount(); i++) {
+            Preference p = mFolderSyncCategory.getPreference(i);
+            if (!addKey.equals(p.getKey())) {
+                toRemove.add(p);
+            }
+        }
+        for (Preference p : toRemove) {
+            mFolderSyncCategory.removePreference(p);
+        }
+
+        // Add a preference for each sync rule
+        List<SyncRule> rules = SyncRuleManager.getAll();
+        Preference addPref = findPreference(addKey);
+
+        for (SyncRule rule : rules) {
+            TextTitleSummaryPreference rulePref = new TextTitleSummaryPreference(requireContext());
+            rulePref.setKey("sync_rule_" + rule.id);
+            rulePref.setTitle(rule.getDisplaySummary());
+            rulePref.setSummary(rule.enabled
+                    ? getString(R.string.settings_folder_sync_enabled)
+                    : getString(R.string.settings_folder_sync_disabled));
+            rulePref.setIconSpaceReserved(false);
+
+            rulePref.setOnPreferenceClickListener(preference -> {
+                showSyncRuleOptions(rule);
+                return true;
+            });
+
+            // Insert before the "Add" button
+            if (addPref != null) {
+                rulePref.setOrder(addPref.getOrder() - 1);
+            }
+            mFolderSyncCategory.addPreference(rulePref);
+        }
+    }
+
+    private void showSyncRuleOptions(SyncRule rule) {
+        String toggleLabel = rule.enabled
+                ? getString(R.string.settings_folder_sync_disabled)
+                : getString(R.string.settings_folder_sync_enabled);
+
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle(rule.getDisplaySummary())
+                .setItems(new CharSequence[]{toggleLabel, getString(R.string.delete)}, (dialog, which) -> {
+                    if (which == 0) {
+                        rule.enabled = !rule.enabled;
+                        SyncRuleManager.update(rule);
+                        refreshSyncRulePrefs();
+                    } else {
+                        new MaterialAlertDialogBuilder(requireContext())
+                                .setMessage(R.string.settings_folder_sync_delete_confirm)
+                                .setPositiveButton(R.string.delete, (d2, w2) -> {
+                                    SyncRuleManager.remove(rule.id);
+                                    refreshSyncRulePrefs();
+                                    Toasts.show(R.string.settings_folder_sync_removed);
+                                })
+                                .setNegativeButton(R.string.cancel, null)
+                                .show();
+                    }
+                })
+                .show();
     }
 
     private SwitchStorageDialogFragment dialogFragment;
@@ -1203,8 +1305,68 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
     private ActivityResultLauncher<Intent> folderBackupConfigLauncher;
     private ActivityResultLauncher<String[]> readWritePermissionLauncher;
     private ActivityResultLauncher<Intent> manageAllFilesPermissionLauncher;
+    private ActivityResultLauncher<Intent> syncRuleRemotePickerLauncher;
+    private ActivityResultLauncher<Uri> syncRuleLocalPickerLauncher;
 
     private void registerResultLauncher() {
+        syncRuleRemotePickerLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
+            @Override
+            public void onActivityResult(ActivityResult o) {
+                if (o == null || o.getResultCode() != RESULT_OK || o.getData() == null) {
+                    return;
+                }
+
+                Intent data = o.getData();
+                String repoId = data.getStringExtra(ObjKey.REPO_ID);
+                String repoName = data.getStringExtra(ObjKey.REPO_NAME);
+                String dir = data.getStringExtra(ObjKey.DIR);
+                if (TextUtils.isEmpty(repoId)) {
+                    return;
+                }
+                if (TextUtils.isEmpty(dir)) {
+                    dir = "/";
+                }
+
+                // Save partial rule and proceed to step 2: pick local folder
+                pendingSyncRule = new SyncRule();
+                pendingSyncRule.repoId = repoId;
+                pendingSyncRule.repoName = repoName;
+                pendingSyncRule.remotePath = dir;
+
+                syncRuleLocalPickerLauncher.launch(null);
+            }
+        });
+
+        syncRuleLocalPickerLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocumentTree(), new ActivityResultCallback<Uri>() {
+            @Override
+            public void onActivityResult(Uri uri) {
+                if (uri == null || pendingSyncRule == null) {
+                    pendingSyncRule = null;
+                    return;
+                }
+
+                // Take persistable permission
+                requireContext().getContentResolver().takePersistableUriPermission(uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+                pendingSyncRule.localUri = uri.toString();
+
+                // Derive a display name from the URI
+                String segment = uri.getLastPathSegment();
+                if (segment != null) {
+                    pendingSyncRule.localName = segment.replace(":", "/");
+                } else {
+                    pendingSyncRule.localName = uri.toString();
+                }
+
+                SyncRuleManager.add(pendingSyncRule);
+                pendingSyncRule = null;
+
+                refreshSyncRulePrefs();
+                Toasts.show(R.string.settings_folder_sync_added);
+            }
+        });
+
         folderSelectorLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), new ActivityResultCallback<ActivityResult>() {
             @Override
             public void onActivityResult(ActivityResult o) {

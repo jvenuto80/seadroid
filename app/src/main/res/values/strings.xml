@@ -461,6 +461,17 @@
     </string>
     <string name="settings_advance_feature_title">ADVANCED FEATURES</string>
     <string name="settings_transfer_title">UPLOAD &amp; DOWNLOAD</string>
+    <string name="settings_folder_sync_title">FOLDER SYNC</string>
+    <string name="settings_folder_sync_add">Add sync rule</string>
+    <string name="settings_folder_sync_add_summary">Map a Seafile folder to a local folder</string>
+    <string name="settings_folder_sync_empty">No sync rules configured</string>
+    <string name="settings_folder_sync_pick_remote">Select Seafile folder</string>
+    <string name="settings_folder_sync_pick_local">Select local folder</string>
+    <string name="settings_folder_sync_added">Sync rule added</string>
+    <string name="settings_folder_sync_removed">Sync rule removed</string>
+    <string name="settings_folder_sync_delete_confirm">Remove this sync rule?</string>
+    <string name="settings_folder_sync_enabled">Enabled</string>
+    <string name="settings_folder_sync_disabled">Disabled</string>
     <string name="settings_storage_title">CACHE STORAGE</string>
     <string name="settings_cache_title">Cache size</string>
     <string name="settings_clear_cache_title">Clear cache</string>

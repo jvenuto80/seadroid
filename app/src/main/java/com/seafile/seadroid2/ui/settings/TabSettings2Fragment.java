@@ -433,7 +433,7 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
                 // Step 1: pick Seafile repo + dir
                 Intent intent = ObjSelectorActivity.getCurrentAccountIntent(
                         requireContext(),
-                        ObjSelectType.DIR,
+                        ObjSelectType.REPO,
                         ObjSelectType.DIR,
                         null
                 );

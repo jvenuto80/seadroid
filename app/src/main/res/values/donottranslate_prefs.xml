@@ -86,6 +86,7 @@
     <!-- folder sync -->
     <string name="pref_key_folder_sync_category">key_folder_sync_category</string>
     <string name="pref_key_folder_sync_add">key_folder_sync_add</string>
+    <string name="pref_key_folder_sync_now">key_folder_sync_now</string>
 
     <!-- cache -->
     <string name="pref_key_cache_info">key_cache_info</string>

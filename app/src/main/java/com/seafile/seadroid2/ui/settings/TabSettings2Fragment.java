@@ -443,6 +443,15 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
         }
 
         refreshSyncRulePrefs();
+
+        Preference syncNowPref = findPreference(getString(R.string.pref_key_folder_sync_now));
+        if (syncNowPref != null) {
+            syncNowPref.setOnPreferenceClickListener(preference -> {
+                BackgroundJobManagerImpl.getInstance().runFolderSyncNow();
+                Toasts.show(R.string.settings_folder_sync_started);
+                return true;
+            });
+        }
     }
 
     private void refreshSyncRulePrefs() {

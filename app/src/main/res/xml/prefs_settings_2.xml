@@ -303,7 +303,15 @@
             android:summary="@string/settings_folder_sync_add_summary"
             app:backgroundColor="@color/pref_background_color"
             app:iconSpaceReserved="false"
-            app:radiusPosition="all" />
+            app:radiusPosition="top" />
+
+        <com.seafile.seadroid2.widget.prefs.TextTitleSummaryPreference
+            android:key="@string/pref_key_folder_sync_now"
+            android:title="@string/settings_folder_sync_now"
+            android:summary="@string/settings_folder_sync_now_summary"
+            app:backgroundColor="@color/pref_background_color"
+            app:iconSpaceReserved="false"
+            app:radiusPosition="bottom" />
 
     </com.seafile.seadroid2.widget.prefs.CardPreferenceCategory>
 

@@ -12,6 +12,7 @@ import com.seafile.seadroid2.framework.service.ITransferNotification;
 import com.seafile.seadroid2.framework.service.ParentEventDownloader;
 import com.seafile.seadroid2.framework.util.SafeLogs;
 import com.seafile.seadroid2.framework.util.Toasts;
+import com.seafile.seadroid2.enums.TransferStatus;
 import com.seafile.seadroid2.framework.worker.GlobalTransferCacheList;
 import com.seafile.seadroid2.framework.worker.TransferEvent;
 import com.seafile.seadroid2.framework.worker.queue.TransferModel;
@@ -82,6 +83,7 @@ public class FileDownloader extends ParentEventDownloader {
         Toasts.show(tip);
 
         SeafException resultSeafException = SeafException.SUCCESS;
+        java.util.List<TransferModel> failedModels = new java.util.ArrayList<>();
         while (true) {
             TransferModel transferModel = GlobalTransferCacheList.DOWNLOAD_QUEUE.pick();
             if (transferModel == null) {
@@ -97,6 +99,31 @@ public class FileDownloader extends ParentEventDownloader {
                 notifyError(seafException);
 
                 resultSeafException = seafException;
+
+                // Collect for retry if under max retries
+                if (transferModel.retry_times < 1) {
+                    failedModels.add(transferModel);
+                }
+            }
+        }
+
+        // Automatic retry once for failed downloads
+        if (!failedModels.isEmpty()) {
+            SafeLogs.d(TAG, "download()", "retrying " + failedModels.size() + " failed downloads");
+            for (TransferModel failed : failedModels) {
+                failed.retry_times++;
+                failed.transfer_status = TransferStatus.WAITING;
+                GlobalTransferCacheList.DOWNLOAD_QUEUE.put(failed);
+            }
+
+            while (true) {
+                TransferModel retryModel = GlobalTransferCacheList.DOWNLOAD_QUEUE.pick();
+                if (retryModel == null) break;
+                try {
+                    transfer(account, retryModel);
+                } catch (SeafException seafException) {
+                    SafeLogs.e("Retry failed for: " + retryModel.file_name);
+                }
             }
         }
 

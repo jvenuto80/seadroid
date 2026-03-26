@@ -459,12 +459,13 @@ public class TabSettings2Fragment extends RenameSharePreferenceFragmentCompat {
             return;
         }
 
-        // Remove all dynamically-added rule preferences (keep the "Add" button)
+        // Remove all dynamically-added rule preferences (keep the "Add" and "Sync now" buttons)
         String addKey = getString(R.string.pref_key_folder_sync_add);
+        String syncNowKey = getString(R.string.pref_key_folder_sync_now);
         List<Preference> toRemove = new ArrayList<>();
         for (int i = 0; i < mFolderSyncCategory.getPreferenceCount(); i++) {
             Preference p = mFolderSyncCategory.getPreference(i);
-            if (!addKey.equals(p.getKey())) {
+            if (!addKey.equals(p.getKey()) && !syncNowKey.equals(p.getKey())) {
                 toRemove.add(p);
             }
         }
